@@ -13,6 +13,7 @@ use Intervention\Image\Constraint;
 use Intervention\Image\Facades\Image;
 use TCG\Voyager\Traits\AlertsMessages;
 use Validator;
+use Imagick;
 
 abstract class Controller extends BaseController
 {
@@ -263,58 +264,83 @@ abstract class Controller extends BaseController
                     $path = $slug.'/'.date('F').date('Y').'/';
                     $fullPath = $path.$filename.'.'.$file->getClientOriginalExtension();
 
-                    $options = json_decode($row->details);
+                    $im = new \Imagick($request->image_path->getRealPath());
 
-                    if (isset($options->resize) && isset($options->resize->width) && isset($options->resize->height)) {
-                        $resize_width = $options->resize->width;
-                        $resize_height = $options->resize->height;
-                    } else {
-                        $resize_width = 1800;
-                        $resize_height = null;
-                    }
+                    if ($im->getImageFormat() == 'GIF') {
+                        $im = $im->coalesceImages();
 
-                    $image = Image::make($file)->resize($resize_width, $resize_height,
-                        function (Constraint $constraint) {
-                            $constraint->aspectRatio();
-                            $constraint->upsize();
-                        })->encode($file->getClientOriginalExtension(), 75);
+                        do {
 
-                    Storage::disk(config('voyager.storage.disk'))->put($fullPath, (string) $image, 'public');
+                            $width = $im->getImageWidth();
+                            $height = $im->getImageHeight();
+                            $crop_width = 680;
+                            $crop_height = 500;
+                            $crop_x = ($width - $crop_width) / 2;
+                            $crop_y = ($height - $crop_height) / 2;
+                            $im->cropImage($crop_width, $crop_height, $crop_x, $crop_y);
 
-                    if (isset($options->thumbnails)) {
-                        foreach ($options->thumbnails as $thumbnails) {
-                            if (isset($thumbnails->name) && isset($thumbnails->scale)) {
-                                $scale = intval($thumbnails->scale) / 100;
-                                $thumb_resize_width = $resize_width;
-                                $thumb_resize_height = $resize_height;
+                        } while ($im->nextImage());
 
-                                if ($thumb_resize_width != 'null') {
-                                    $thumb_resize_width = $thumb_resize_width * $scale;
+                        $im = $im->deconstructImages();
+                        $im->writeImages(public_path('upload/temp/'.$filename.'.'.$file->getClientOriginalExtension()), true);
+                        $img = file_get_contents(public_path('upload/temp/'.$filename.'.'.$file->getClientOriginalExtension()));
+                        Storage::disk(config('voyager.storage.disk'))->put($fullPath, (string) $img, 'public');
+
+                    else {
+
+                        $options = json_decode($row->details);
+
+                        if (isset($options->resize) && isset($options->resize->width) && isset($options->resize->height)) {
+                            $resize_width = $options->resize->width;
+                            $resize_height = $options->resize->height;
+                        } else {
+                            $resize_width = 1800;
+                            $resize_height = null;
+                        }
+
+                        $image = Image::make($file)->resize($resize_width, $resize_height,
+                            function (Constraint $constraint) {
+                                $constraint->aspectRatio();
+                                $constraint->upsize();
+                            })->encode($file->getClientOriginalExtension(), 75);
+
+                        Storage::disk(config('voyager.storage.disk'))->put($fullPath, (string) $image, 'public');
+
+                        if (isset($options->thumbnails)) {
+                            foreach ($options->thumbnails as $thumbnails) {
+                                if (isset($thumbnails->name) && isset($thumbnails->scale)) {
+                                    $scale = intval($thumbnails->scale) / 100;
+                                    $thumb_resize_width = $resize_width;
+                                    $thumb_resize_height = $resize_height;
+
+                                    if ($thumb_resize_width != 'null') {
+                                        $thumb_resize_width = $thumb_resize_width * $scale;
+                                    }
+
+                                    if ($thumb_resize_height != 'null') {
+                                        $thumb_resize_height = $thumb_resize_height * $scale;
+                                    }
+
+                                    $image = Image::make($file)->resize($thumb_resize_width, $thumb_resize_height,
+                                        function (Constraint $constraint) {
+                                            $constraint->aspectRatio();
+                                            $constraint->upsize();
+                                        })->encode($file->getClientOriginalExtension(), 75);
+                                } elseif (isset($options->thumbnails) && isset($thumbnails->crop->width) && isset($thumbnails->crop->height)) {
+                                    $crop_width = $thumbnails->crop->width;
+                                    $crop_height = $thumbnails->crop->height;
+                                    $image = Image::make($file)
+                                        ->fit($crop_width, $crop_height)
+                                        ->encode($file->getClientOriginalExtension(), 75);
                                 }
 
-                                if ($thumb_resize_height != 'null') {
-                                    $thumb_resize_height = $thumb_resize_height * $scale;
-                                }
-
-                                $image = Image::make($file)->resize($thumb_resize_width, $thumb_resize_height,
-                                    function (Constraint $constraint) {
-                                        $constraint->aspectRatio();
-                                        $constraint->upsize();
-                                    })->encode($file->getClientOriginalExtension(), 75);
-                            } elseif (isset($options->thumbnails) && isset($thumbnails->crop->width) && isset($thumbnails->crop->height)) {
-                                $crop_width = $thumbnails->crop->width;
-                                $crop_height = $thumbnails->crop->height;
-                                $image = Image::make($file)
-                                    ->fit($crop_width, $crop_height)
-                                    ->encode($file->getClientOriginalExtension(), 75);
+                                Storage::disk(config('voyager.storage.disk'))->put($path.$filename.'-'.$thumbnails->name.'.'.$file->getClientOriginalExtension(),
+                                    (string) $image, 'public'
+                                );
                             }
-
-                            Storage::disk(config('voyager.storage.disk'))->put($path.$filename.'-'.$thumbnails->name.'.'.$file->getClientOriginalExtension(),
-                                (string) $image, 'public'
-                            );
                         }
                     }
-
+                   
                     return $fullPath;
                 }
                 break;
