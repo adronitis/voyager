@@ -281,10 +281,12 @@ abstract class Controller extends BaseController
 
                         } while ($im->nextImage());
 
+                        $tempPath = public_path('upload/temp/'.$filename.'.'.$file->getClientOriginalExtension());
                         $im = $im->deconstructImages();
-                        $im->writeImages(public_path('upload/temp/'.$filename.'.'.$file->getClientOriginalExtension()), true);
-                        $img = file_get_contents(public_path('upload/temp/'.$filename.'.'.$file->getClientOriginalExtension()));
+                        $im->writeImages($tempPath, true);
+                        $img = file_get_contents($tempPath);
                         Storage::disk(config('voyager.storage.disk'))->put($fullPath, (string) $img, 'public');
+                        File::Delete($tempPath);
 
                     else {
 
