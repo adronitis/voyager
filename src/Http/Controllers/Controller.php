@@ -2,6 +2,7 @@
 
 namespace TCG\Voyager\Http\Controllers;
 
+use File;
 use Validator;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
