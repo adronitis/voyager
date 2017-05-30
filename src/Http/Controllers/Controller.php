@@ -2,18 +2,17 @@
 
 namespace TCG\Voyager\Http\Controllers;
 
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Foundation\Bus\DispatchesJobs;
-use Illuminate\Foundation\Validation\ValidatesRequests;
-use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
-use Illuminate\Support\Facades\Storage;
+use Validator;
 use Illuminate\Support\Str;
+use Illuminate\Http\Request;
 use Intervention\Image\Constraint;
 use Intervention\Image\Facades\Image;
 use TCG\Voyager\Traits\AlertsMessages;
-use Validator;
-use Imagick;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Foundation\Bus\DispatchesJobs;
+use Illuminate\Routing\Controller as BaseController;
+use Illuminate\Foundation\Validation\ValidatesRequests;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 abstract class Controller extends BaseController
 {
@@ -52,10 +51,10 @@ abstract class Controller extends BaseController
             /*
              * merge ex_images and upload images
              */
-            if ($row->type == 'multiple_images' && !is_null($content)) {
+            if ($row->type == 'multiple_images' && ! is_null($content)) {
                 if (isset($data->{$row->field})) {
                     $ex_files = json_decode($data->{$row->field}, true);
-                    if (!is_null($ex_files)) {
+                    if (! is_null($ex_files)) {
                         $content = json_encode(array_merge($ex_files, json_decode($content)));
                     }
                 }
@@ -103,7 +102,7 @@ abstract class Controller extends BaseController
 
             if (isset($options->validation)) {
                 if (isset($options->validation->rule)) {
-                    if (!is_array($options->validation->rule)) {
+                    if (! is_array($options->validation->rule)) {
                         $rules[$row->field] = explode('|', $options->validation->rule);
                     } else {
                         $rules[$row->field] = $options->validation->rule;
@@ -129,7 +128,7 @@ abstract class Controller extends BaseController
             case 'password':
                 $pass_field = $request->input($row->field);
 
-                if (isset($pass_field) && !empty($pass_field)) {
+                if (isset($pass_field) && ! empty($pass_field)) {
                     return bcrypt($request->input($row->field));
                 }
 
@@ -232,11 +231,11 @@ abstract class Controller extends BaseController
                 } else {
                     // Check if we need to parse the editablePivotFields to update fields in the corresponding pivot table
                     $options = json_decode($row->details);
-                    if (isset($options->relationship) && !empty($options->relationship->editablePivotFields)) {
+                    if (isset($options->relationship) && ! empty($options->relationship->editablePivotFields)) {
                         $pivotContent = [];
                         // Read all values for fields in pivot tables from the request
                         foreach ($options->relationship->editablePivotFields as $pivotField) {
-                            if (!isset($pivotContent[$pivotField])) {
+                            if (! isset($pivotContent[$pivotField])) {
                                 $pivotContent[$pivotField] = [];
                             }
                             $pivotContent[$pivotField] = $request->input('pivot_'.$pivotField);
@@ -270,7 +269,6 @@ abstract class Controller extends BaseController
                         $im = $im->coalesceImages();
 
                         do {
-
                             $width = $im->getImageWidth();
                             $height = $im->getImageHeight();
                             $crop_width = 680;
@@ -278,7 +276,6 @@ abstract class Controller extends BaseController
                             $crop_x = ($width - $crop_width) / 2;
                             $crop_y = ($height - $crop_height) / 2;
                             $im->cropImage($crop_width, $crop_height, $crop_x, $crop_y);
-
                         } while ($im->nextImage());
 
                         $tempPath = public_path('upload/temp/'.$filename.'.'.$file->getClientOriginalExtension());
@@ -287,9 +284,7 @@ abstract class Controller extends BaseController
                         $img = file_get_contents($tempPath);
                         Storage::disk(config('voyager.storage.disk'))->put($fullPath, (string) $img, 'public');
                         File::Delete($tempPath);
-
-                    else {
-
+                    } else {
                         $options = json_decode($row->details);
 
                         if (isset($options->resize) && isset($options->resize->width) && isset($options->resize->height)) {
